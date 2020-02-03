@@ -9,9 +9,9 @@ Los patrones de diseño son uno de los aspectos más importantes de las **bases 
 
 Pero cuidado, no dejan de ser una herramienta más que tenemos disponible para desarrollar, por lo que deberemos conocer correctamente la motivación de cada uno de ellos, para saber cuando merece la pena aplicarlos sobre nuestros diseños, **evitando la sobreingeniería**.
 
-A lo largo del artículo, veremos varios de estos **patrones aplicados sobre ejemplos reales** dentro de una aplicación *Angular* en la que trabajamos durante 2 años, implementada con *TypeScript*. De esta forma, evitaremos repasar cada patrón desde un punto de vista más teórico, por lo que os resultará más fácil saber si se ajusta a vuestras necesidades o no.
+A lo largo del artículo, veremos varios de estos **patrones aplicados sobre ejemplos reales** dentro de una aplicación *Angular* en la que trabajamos durante 2 años, implementada con *TypeScript*. De esta forma, evitaremos repasar cada patrón sólo desde el punto de vista teórico, por lo que os resultará más fácil saber si se ajusta a vuestras necesidades o no.
 
-Antes de meternos de lleno con cada patrón, cabe destacar que se suelen agrupar cada uno de ellos en distintas categorías:
+Antes de meternos de lleno con cada patrón, cabe destacar que se suelen agrupar en distintas categorías:
 * **Patrones creacionales:** Solucionan problemas de creación de instancias de objetos.
 * **Patrones estructurales:** Solucionan problemas de composición y agregación de objetos.
 * **Patrones de comportamiento:** Solucionan problemas surgidos sobre las responsabilidades e interacciones entre objetos.
@@ -19,7 +19,7 @@ Antes de meternos de lleno con cada patrón, cabe destacar que se suelen agrupar
 
 # Patrones creacionales
 ## Factory method
-Nuestro objetivo antes de aplicar este patrón, es crear instancias de un objeto cualquiera *ConcreteProduct*, que puede implementar una interfaz *Product* en caso de que necesitemos instanciar distintos tipos de objetos (*ConcreteProduct*) con una estructura similar:
+Nuestro objetivo antes de aplicar este patrón, es crear instancias de un objeto cualquiera *ConcreteProduct*, que puede implementar una interfaz *Product* en caso de que necesitemos instanciar distintos tipos de objetos con una estructura similar:
 ```ts
 interface Product {
   // Contract members
@@ -31,11 +31,11 @@ class ConcreteProduct1 implements Product {
 ```
 El patrón *factory method* nos permite **encapsular** la lógica de creación de ese objeto dentro de las subclases *ConcreteCreators*, descargando de dependencias al cliente que las consume:
 ```ts
-interface Creator {
-  factoryMethod(): Product;
+abstract class Creator {
+  public abstract factoryMethod(): Product;
 }
 
-class ConcreteCreator implements Creator {
+class ConcreteCreator extends Creator {
   factoryMethod(): Product {
     return new ConcreteProduct1();
   }
@@ -43,18 +43,20 @@ class ConcreteCreator implements Creator {
 
 export class Client {
   createProduct(): Product {
-    const creator = new ConcreteCreator();
+    const creator: Creator = new ConcreteCreator();
     return creator.factoryMethod();
   }
 }
 ```
-Como podéis ver en el código, *ConcreteCreator* implementa la interfaz *Creator* para que podamos asegurarnos de que todas las subclases encargadas de crear las instancias de los distintos tipos de objetos, devuelven un objeto de tipo *Product* y además tienen su correspondiente *factory method* con la misma firma. Si tuviéramos que crear instancias de objetos que no tienen la misma estructura, podriamos obviar la definición de las interfaces *Product* y *Creator*.
+Como podéis ver en el código, *ConcreteCreator* extiende la clase abstracta *Creator* para que podamos asegurarnos de que todas las subclases encargadas de crear las instancias de los distintos tipos de objetos, devuelven un objeto de tipo *Product* y además tienen su correspondiente *factory method* con la misma firma. Además, podemos añadir en esa clase abstracta, más métodos que tengan que ver con la manipulación de los productos.
 
 Además, este patrón favorece la **extensibilidad** siguiendo el [principio de open-close](https://es.wikipedia.org/wiki/Principio_de_abierto/cerrado): podemos añadir un nuevo *ConcreteProduct* con solo cumplir la interfaz, sin tener que modificar los productos existentes. Incluso tenemos la **versatilidad** de intercambiar facilmente un *ConcreteCreator* por otro.
 
+Otra ventaja de este patrón, es que si los objetos *Product* tienen alguna dependencia externa, podemos proporcionárselas mediante su constructor y esta lógica estará encapsulada también. De tal forma que si en el futuro varía alguna de estas dependencias, el punto de colisión en el código es mucho menor, sólo tendremos que modificar la dependencia en la instanciación desde su *ConcreteProduct*, en vez de tener que revisar todos los *Client*.
+
 Una vez recordada la teoría del patrón, vamos a ver cómo lo aplicamos nosotros en el proyecto.
 
-Nos surgió la necesidad de guardar una traza de los eventos y errores que iban sucediendo durante la ejecución de la aplicación en una plataforma *cloud* como es [Application Insights](https://docs.microsoft.com/es-es/azure/azure-monitor/app/app-insights-overview). Además, el equipo de negocio de la aplicación quería que a los usuarios les aparecieran esos eventos y errores también en la consola del navegador para poder remitírselos al equipo técnico de soporte.
+Para el entorno de *Producción*, nos surgió la necesidad de guardar una traza de los eventos y errores que iban sucediendo durante la ejecución de la aplicación en una plataforma *cloud* como es [Application Insights](https://docs.microsoft.com/es-es/azure/azure-monitor/app/app-insights-overview). Sin embargo, para el entorno de *Desarrollo*, queríamos que esos eventos y errores aparecieran en la consola del navegador.
 
 Para ello, definimos la interfaz *Logger* con el método *log* que usaremos para registrar estos eventos y errores. Dicha interfaz la implementan *AppInsightsLogger* que registra la información en la nube y un hipotético *ConsoleLogger* que no hace falta implementarlo puesto que el objeto *console* del navegador ya cumple con esa interfaz. 
 ```ts
@@ -68,7 +70,7 @@ class AppInsightsLogger implements Logger {
     }
 }
 ```
-Para crear cada uno de los *loggers* tenemos dos clases *AppInsightsLoggerCreator* y *ConsoleLoggerCreator* que pueden ser instanciadas desde cualquier punto de la aplicación, **sin necesidad de conocer cómo deben crearse dichos objetos**, únicamente invocando al *factory method* *getLogger*. 
+Para crear cada uno de los *loggers* tenemos dos clases *AppInsightsLoggerCreator* y *ConsoleLoggerCreator* que pueden ser instanciadas desde cualquier punto de la aplicación, **sin necesidad de conocer cómo deben crearse dichos objetos**, únicamente invocando al *factory method* *getLogger*:
 ```ts
 class ConsoleLoggerCreator
     extends AbstractLoggerCreator {
@@ -85,24 +87,35 @@ class AppInsightsLoggerCreator
         return new AppInsightsLogger();
     }
 }
-
-export class Client {
-    initializeLoggers() {
-        const consoleLoggerCreator: AbstractLoggerCreator = new ConsoleLoggerCreator();
-        consoleLoggerCreator.getLogger().log('a message shown in the browser console');
-
-        const appInsightsLoggerCreator: AbstractLoggerCreator = new AppInsightsLoggerCreator();
-        appInsightsLoggerCreator.getLogger().log('a message tracked in the cloud (Azure AppInsights)');
-    }
-}
 ```
-Nótese que ambos *LoggerCreators* extienden la clase abstracta *AbstractLoggerCreator* para evitar que ciertos puntos de la aplicación dependan de un tipo concreto, favoreciendo implementar un **código más genérico y sin duplicidades**.
+Nótese que ambos *LoggerCreators* extienden la clase abstracta *AbstractLoggerCreator* para evitar que ciertos puntos de la aplicación dependan de un tipo concreto, favoreciendo implementar un **código más genérico y sin duplicidades**. Además, nos permite añadir en dicha clase más métodos que tengan que ver con la manipulación de loggers.
 ```ts
 abstract class AbstractLoggerCreator {
     protected abstract createLogger(): Logger;
 
     public getLogger(): Logger {
         return this.createLogger();
+    }
+    // More possible methods about loggers manipulation
+}
+```
+En vez de invocar directamente al *factory method* desde el cliente, implementamos una clase intermedia *LoggerCreator* que era la encargada de llamar a este método dependiendo del entorno en el que nos encontrábamos:
+```ts
+class LoggerCreator {
+    public static getLogger(environment): Logger {
+        const dictionary = {
+            ['DEV']: () => new ConsoleLoggerCreator(),
+            ['PROD']: () => new AppInsightsLoggerCreator()
+        };
+        return dictionary[environment]().getLogger();
+    }
+}
+
+export class Client {
+    constructor(private appConfig: { environment: string }) { }
+
+    main() {
+        LoggerCreator.getLogger(this.appConfig.environment).log('a message to log');
     }
 }
 ```
@@ -581,7 +594,7 @@ class ConcreteStrategyB implements Strategy {
     }
 }
 ```
-Definimos una clase *Context* que conoce la implementación o estrategia que debe ejecutarse para acometer la funcionalidad:
+Definimos una clase *Context* que conoce la implementación o estrategia que debe ejecutarse en cada momento para acometer la funcionalidad:
 ```ts
 class Context {
     private strategy: Strategy;
@@ -677,7 +690,7 @@ export class StrategyRealWorldComponent implements OnInit {
     }
 }
 ```
-Como podéis ver en el ejemplo, casi siempre que aplicamos el patrón *Strategy*, se elige la estrategia o implementación a ejecutar en base a algún tipo de condición o parámetro. En nuestro caso fue el tipo de dato.
+Como podéis ver en el ejemplo, casi siempre que aplicamos el patrón *Strategy*, se elige la estrategia o implementación a ejecutar en base a algún tipo de condición o parámetro. En nuestro caso, como hemos dicho, fue el tipo de dato.
 
 ## Observer
 Este patrón seguramente es de los más utilizados después del *Singleton*. La motivación principal es **desacoplar la comunicación entre distintos objetos**. Desde el punto de vista teórico, empezamos definiendo los *Observers*:
@@ -729,7 +742,7 @@ export class Client {
     }
 }
 ```
-Como podéis observar, con este patrón logramos que **desacoplar totalmente** a los *observers*, ya que no conocen ni tienen ninguna referencia a ningún *subject*. Además, no estamos atados a un orden concreto de notificación entre observers.
+Como podéis observar, con este patrón logramos **desacoplar totalmente** a los *observers*, ya que no conocen ni tienen ninguna referencia a ningún *subject*. Además, no estamos atados a un orden concreto de notificación entre observers.
 
 En nuestro caso particular, teníamos un estado centralizado implementado con *Redux* y debíamos notificar a cada uno de los componentes visuales cuando una propiedad del estado se veía modificada. Esta notificación la implementamos mediante el patrón *observer*, donde cada *observer* era cada uno de los componentes a los que se debía notificar:
 ```ts
@@ -840,7 +853,7 @@ Que expone métodos *get* para obtener valores de la vista y algún método como
     <li><a href="#" class="view-detail">View Detail</a></li>
 </ul>
 ```
-Así, tendremos el código de nuestros tests totalmente desacoplado de la vista (además de ser mucho **más legible y mantenible**). En el caso en que cambie el HTML del componente, sólo habrá que adaptar la clase *PageObject*, pero el código de nuestros tests quedará intacto, lo que conllevará que el mantenimiento de éstos sea mucho más fácil y no se acabarán abandonando.
+Así, tendremos el código de nuestros tests totalmente desacoplado de la vista (además de ser mucho **más legible y mantenible**). En el caso en que cambie el HTML del componente (que suele ser muy habitual), sólo habrá que adaptar la clase *PageObject*, pero el código de nuestros tests quedará intacto, lo que conllevará que el mantenimiento de éstos sea mucho más fácil y no se acabarán abandonando.
 ```ts
 export class TestClient {
     private pageObject = new ProductListPageObject();**
@@ -866,6 +879,6 @@ export class TestClient {
 # Y aún hay mas...
 Estos han sido sólo algunos de los patrones que usamos en nuestra aplicación, si queréis conocer todos los que llegamos a aplicar, podéis consultar la [charla](https://www.youtube.com/watch?v=ZlhKj32KlfI) que impartimos en la JSDay Canarias 2019 y su [repositorio de código](https://github.com/cbastos/jsdaycan2019-typescript-patterns) correspondiente con ejemplos.
 
-Además, no puedo dejar de recomendar el libro que más me ha servido de ayuda y que mejor explica la mayoría de patrones (para mi gusto): [Head First Design Patterns](https://www.oreilly.com/library/view/head-first-design/0596007124/)
+Además, no puedo dejar de recomendar el libro que más me ha servido de ayuda y que mejor explica la mayoría de patrones (para mi gusto): **Head First Design Patterns** de *Eric Freeman*, *Elisabeth Freeman*, *Kathy Sierra* y *Bert Bates*.
 
 Espero que os haya resultado útil el artículo, y cualquier duda/pregunta/sugerencia podéis encontrarme en twitter como [@ivanirega](https://twitter.com/ivanirega). Y recordad: *"Donde hay patrón, no manda marinero"* XD
